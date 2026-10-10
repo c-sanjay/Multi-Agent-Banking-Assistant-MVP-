@@ -1,0 +1,5 @@
+.env
+bank.db
+logs/
+__pycache__/
+.venv/
