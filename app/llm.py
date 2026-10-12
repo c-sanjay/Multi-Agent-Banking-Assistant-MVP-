@@ -188,7 +188,7 @@ def _parse_rate(text: str) -> float | None:
 class MockLLM:
     """Keyword-driven fake model. Same interface, no network, no key.
 
-    It exists so the architecture (routing, tool loop, guardrails, tracing, UI) can be run and
+    It exists so the architecture (routing, tool loop, guardrails, UI) can be run and
     tested end-to-end without an API key. Swap to AnthropicLLM for real language understanding.
     """
 
@@ -223,8 +223,7 @@ class MockLLM:
             agents.append("customer")
         if not agents:
             agents = ["customer"]
-        why = {"risk": "fraud/risk signals", "credit": "loan/credit question", "customer": "account information or action"}
-        return {"agents": agents, "reasoning": "Matched " + ", ".join(why[a] for a in agents)}
+        return {"agents": agents}
 
     def _agent_step(self, agent: str, messages: list[dict]) -> LLMResponse:
         results = self._collect_results(messages)

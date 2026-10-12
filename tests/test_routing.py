@@ -11,7 +11,7 @@ def test_explicit_suspicious_charge_and_block_skips_router_llm(monkeypatch):
 
     decision = supervisor.route("That ₹48,000 charge looks wrong, check it and block my card", history=[])
     assert decision["agents"] == ["risk", "customer"]
-    assert decision["llm_calls"] == 0
+    assert decision["deterministic"] is True
 
 
 def test_standard_account_request_uses_fast_path(monkeypatch):
@@ -23,8 +23,7 @@ def test_standard_account_request_uses_fast_path(monkeypatch):
     decision = supervisor.route("Show my balance and last 5 transactions", history=[])
 
     assert decision["agents"] == ["customer"]
-    assert decision["fast_path"] is True
-    assert decision["llm_calls"] == 0
+    assert decision["deterministic"] is True
 
 
 def test_unparseable_route_otherwise_falls_back_to_customer(monkeypatch):
@@ -37,8 +36,7 @@ def test_unparseable_route_otherwise_falls_back_to_customer(monkeypatch):
     decision = supervisor.route("Can you help me with this?", history=[])
 
     assert decision["agents"] == ["customer"]
-    assert decision["llm_calls"] == 1
-    assert decision["fast_path"] is False
+    assert decision["deterministic"] is False
 
 
 def test_explicit_block_request_creates_confirmation_even_without_model_tool_call(monkeypatch):
@@ -54,15 +52,7 @@ def test_explicit_block_request_creates_confirmation_even_without_model_tool_cal
         "That ₹48,000 charge looks wrong, check it and block my card",
     )
 
-    assert reply["trace"]["route"]["agents"] == ["risk", "customer"]
-    assert reply["trace"]["route"]["fast_path"] is True
     assert reply["pending_confirmation"]["tool"] == "block_card"
     assert "confirm" in reply["answer"].lower()
-    assert reply["trace"]["llm_calls"] == 0
-    tool_names = [
-        call["tool"]
-        for run in reply["trace"]["agent_runs"]
-        for call in run["tool_calls"]
-    ]
-    assert "block_card" in tool_names
+    assert set(reply) == {"answer", "pending_confirmation", "blocked"}
     supervisor.SESSIONS.pop(session_id, None)

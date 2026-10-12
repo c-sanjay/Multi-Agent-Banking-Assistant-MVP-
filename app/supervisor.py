@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import re
-import time
 import uuid
 
 from app import config, guardrails
@@ -22,7 +21,7 @@ ROUTER_SYSTEM = """You are the supervisor of a multi-agent banking assistant. De
 agent(s) must handle the customer's message. Available agents:
 {agents}
 
-Return ONLY JSON: {{"agents": ["<name>", ...], "reasoning": "<one short sentence>"}}
+Return ONLY JSON: {{"agents": ["<name>", ...]}}
 Rules:
 - Pick the fewest agents needed (usually 1). Pick 2 only when the request clearly spans two domains
   (e.g. 'check this charge AND block my card' -> risk + customer).
@@ -51,77 +50,58 @@ def _requests_fraud_review(message: str) -> bool:
         r"don'?t recognise|do not recognize|chargeback)\b", message, re.I))
 
 
-def _fast_route(message: str) -> tuple[list[str], str] | None:
+def _fast_route(message: str) -> list[str] | None:
     lower = message.lower()
     if _explicit_card_block_request(message) and _requests_fraud_review(message):
-        return ["risk", "customer"], "Clear fraud report and card-block request."
+        return ["risk", "customer"]
     if re.search(r"\bemi\b", lower):
-        return ["credit"], "Clear EMI calculation request."
+        return ["credit"]
     if ("loan" in lower and re.search(r"\b(eligib|qualify|apply|get)\w*\b", lower)):
-        return ["credit"], "Clear loan eligibility request."
+        return ["credit"]
     if "loan" in lower and re.search(r"\b(policy|prepay|foreclos|document|rate)\w*\b", lower):
-        return ["credit"], "Clear loan policy request."
+        return ["credit"]
     if _requests_fraud_review(message):
-        return ["risk"], "Clear fraud or suspicious-transaction request."
+        return ["risk"]
     if _explicit_card_block_request(message):
-        return ["customer"], "Explicit card-block request."
+        return ["customer"]
     if re.search(r"\b(balance|transaction|transactions|statement|spent|spending|profile|kyc)\b", lower):
-        return ["customer"], "Clear account-service request."
+        return ["customer"]
     if re.search(r"\bcredit score|cibil\b", lower):
-        return ["credit"], "Clear credit-score request."
+        return ["credit"]
     return None
 
 
 def route(message: str, history: list[dict]) -> dict:
-    """Choose agents, using deterministic routing for explicit high-confidence requests."""
+    """Choose agents and indicate whether the request has a deterministic handler."""
     fast_route = _fast_route(message)
     if fast_route:
-        agents, reasoning = fast_route
-        return {
-            "agents": agents,
-            "reasoning": reasoning,
-            "latency_ms": 0,
-            "llm_calls": 0,
-            "fast_path": True,
-        }
+        return {"agents": fast_route, "deterministic": True}
 
     agents_desc = "\n".join(f"- {a.spec.name}: {a.spec.description}" for a in AGENTS.values())
     ctx = "\n".join(f"Customer: {h['user']}\nAssistant: {h['assistant'][:200]}" for h in history[-3:])
     content = message + (f"\n\n[CONTEXT]\nRecent conversation:\n{ctx}" if ctx else "")
-    t0 = time.time()
     resp = get_llm().complete(system=ROUTER_SYSTEM.format(agents=agents_desc),
                               messages=[{"role": "user", "content": content}],
                               model=config.SUPERVISOR_MODEL, max_tokens=200, purpose="route")
-    chosen, reasoning = [], ""
-    router_parse_failed = False
+    chosen = []
     try:
         match = re.search(r"\{.*\}", resp.text, re.S)
         data = json.loads(match.group(0) if match else resp.text)
         if not isinstance(data, dict) or not isinstance(data.get("agents"), list):
             raise ValueError("Router response must contain an agents list.")
         chosen = [a for a in data["agents"] if isinstance(a, str) and a in AGENTS]
-        reasoning = str(data.get("reasoning", ""))
     except (json.JSONDecodeError, TypeError, ValueError):
-        router_parse_failed = True
         if _explicit_card_block_request(message) and _requests_fraud_review(message):
             chosen = ["risk", "customer"]
-            reasoning = "Router output was unparseable; selected risk review and the requested card action."
-        else:
-            reasoning = "Router output was unparseable; fell back to the customer agent."
     if _explicit_card_block_request(message):
         if _requests_fraud_review(message):
             chosen = ["risk", "customer"]
-            reasoning = ("Router output was unparseable; selected risk review and the requested card action."
-                         if router_parse_failed
-                         else "Selected risk review and the explicitly requested card action.")
         elif "customer" not in chosen:
             chosen.append("customer")
-            reasoning = "Added the customer agent to handle the explicitly requested card action."
     if not chosen:
         chosen = ["customer"]
     chosen = sorted(set(chosen), key=AGENT_ORDER.index)
-    return {"agents": chosen, "reasoning": reasoning, "latency_ms": round((time.time() - t0) * 1000, 1),
-            "llm_calls": 1, "fast_path": False}
+    return {"agents": chosen, "deterministic": False}
 
 
 def _compose(message: str, runs: list[dict]) -> str:
@@ -130,9 +110,8 @@ def _compose(message: str, runs: list[dict]) -> str:
     return "\n\n".join(r["answer"] for r in runs if r["answer"].strip())
 
 
-def _reply(request_id, answer, trace, pending=None, blocked=False) -> dict:
-    return {"request_id": request_id, "answer": guardrails.mask_pii(answer), "trace": trace,
-            "pending_confirmation": pending, "blocked": blocked}
+def _reply(answer, pending=None, blocked=False) -> dict:
+    return {"answer": guardrails.mask_pii(answer), "pending_confirmation": pending, "blocked": blocked}
 
 
 def _pending_summary(p: dict) -> dict:
@@ -141,17 +120,14 @@ def _pending_summary(p: dict) -> dict:
 
 
 def handle_message(session_id: str, customer_id: str, message: str) -> dict:
-    start, request_id = time.time(), uuid.uuid4().hex[:8]
+    request_id = uuid.uuid4().hex[:8]
     sess = _session(session_id)
-    trace = {"request_id": request_id, "customer_id": customer_id, "guardrails": {"input_allowed": True},
-             "route": None, "agent_runs": [], "llm_calls": 0, "total_latency_ms": 0}
 
     ok, reason = guardrails.check_input(message)
     if not ok:
-        trace["guardrails"] = {"input_allowed": False, "reason": reason}
         guardrails.audit_log({"request_id": request_id, "customer_id": customer_id, "message": message,
                               "blocked": True, "reason": reason})
-        return _reply(request_id, reason, trace, blocked=True)
+        return _reply(reason, blocked=True)
 
     # Typed "yes"/"no" for a pending write action
     if sess["pending"]:
@@ -162,8 +138,6 @@ def handle_message(session_id: str, customer_id: str, message: str) -> dict:
         sess["pending"] = None  # user moved on; drop the stale request
 
     decision = route(message, sess["history"])
-    trace["route"] = decision
-    trace["llm_calls"] += decision["llm_calls"]
 
     ctx = registry.ToolContext(customer_id=customer_id)  # identity injected by backend, not the LLM
     runs: list[dict] = []
@@ -173,26 +147,18 @@ def handle_message(session_id: str, customer_id: str, message: str) -> dict:
         context = "\n".join(x for x in (f"Recent conversation:\n{recent}" if recent else "",
                                         findings) if x)
         run = AGENTS[name].run(message, ctx, context=context,
-                               deterministic=decision.get("fast_path", False))
+                               deterministic=decision["deterministic"])
         runs.append(run)
-        trace["llm_calls"] += run["llm_calls"]
 
     if _explicit_card_block_request(message) and not ctx.pending_action:
-        t0 = time.time()
         args = {"reason": "Customer requested card block"}
         result = registry.execute("block_card", args, "customer", ctx)
         customer_run = next(run for run in runs if run["agent"] == "customer")
-        customer_run["tool_calls"].append({
-            "tool": "block_card", "args": args, "result": result,
-            "latency_ms": round((time.time() - t0) * 1000, 1),
-        })
         if result.get("status") == "confirmation_required":
             customer_run["answer"] = (
                 f"{customer_run['answer'].rstrip()}\n\n"
                 "Please use the confirmation button below to block your card."
             ).strip()
-    trace["agent_runs"] = runs
-
     answer = _compose(message, runs)
 
     if ctx.pending_action and not re.search(r"\bconfirm", answer, re.I):
@@ -204,35 +170,25 @@ def handle_message(session_id: str, customer_id: str, message: str) -> dict:
         sess["pending"] = ctx.pending_action
         pending = _pending_summary(ctx.pending_action)
 
-    trace["total_latency_ms"] = round((time.time() - start) * 1000, 1)
-    reply = _reply(request_id, answer, trace, pending)
+    reply = _reply(answer, pending)
     sess["history"].append({"user": message, "assistant": reply["answer"]})
     guardrails.audit_log({"request_id": request_id, "customer_id": customer_id, "message": message,
-                          "route": decision["agents"], "tools": [c["tool"] for r in runs for c in r["tool_calls"]],
-                          "pending_confirmation": bool(pending), "latency_ms": trace["total_latency_ms"]})
+                          "pending_confirmation": bool(pending)})
     return reply
 
 
 def confirm_action(session_id: str, customer_id: str, approve: bool) -> dict:
     """Human-in-the-loop step: execute (or cancel) the pending write action."""
-    start, request_id = time.time(), uuid.uuid4().hex[:8]
+    request_id = uuid.uuid4().hex[:8]
     sess = _session(session_id)
     pending, sess["pending"] = sess["pending"], None
-    trace = {"request_id": request_id, "customer_id": customer_id, "guardrails": {"input_allowed": True},
-             "route": {"agents": [pending["agent"]] if pending else [], "reasoning": "Human confirmation step"},
-             "agent_runs": [], "llm_calls": 0, "total_latency_ms": 0}
     if not pending:
-        return _reply(request_id, "There is nothing waiting for confirmation.", trace)
+        return _reply("There is nothing waiting for confirmation.")
     if not approve:
         answer = "Okay, I've cancelled that. Nothing was changed."
     else:
         ctx = registry.ToolContext(customer_id=customer_id, confirmed=True)
-        t0 = time.time()
         out = registry.execute(pending["tool"], pending["args"], pending["agent"], ctx)
-        trace["agent_runs"] = [{"agent": pending["agent"], "answer": "", "llm_calls": 0,
-                                "latency_ms": round((time.time() - t0) * 1000, 1),
-                                "tool_calls": [{"tool": pending["tool"], "args": pending["args"], "result": out,
-                                                "latency_ms": round((time.time() - t0) * 1000, 1)}]}]
         if out.get("status") == "blocked":
             answer = (f"Done. Your card ending {out['card_last4']} is now blocked. A replacement will be "
                       "issued within 7 working days. If you see a charge you don't recognise, you can dispute "
@@ -241,8 +197,7 @@ def confirm_action(session_id: str, customer_id: str, approve: bool) -> dict:
             answer = f"Your card ending {out['card_last4']} was already blocked."
         else:
             answer = f"I couldn't complete that: {out.get('error', 'unknown error')}"
-    trace["total_latency_ms"] = round((time.time() - start) * 1000, 1)
     guardrails.audit_log({"request_id": request_id, "customer_id": customer_id, "confirmation": approve,
                           "action": pending["tool"]})
     sess["history"].append({"user": "(confirmation)" if approve else "(cancelled)", "assistant": answer})
-    return _reply(request_id, answer, trace)
+    return _reply(answer)

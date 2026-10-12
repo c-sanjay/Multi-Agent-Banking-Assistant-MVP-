@@ -41,11 +41,11 @@ CREATE TABLE devices (
 
 CUSTOMERS = [
     # id, name, email, phone, city, income, credit_score, kyc
-    ("C001", "Arjun Mehta", "arjun.mehta@example.com", "9876501234", "Chennai", 130000, 782, "VERIFIED"),
-    ("C002", "Priya Nair", "priya.nair@example.com", "9876505678", "Bengaluru", 85000, 701, "VERIFIED"),
-    ("C003", "Rahul Verma", "rahul.verma@example.com", "9876509012", "Delhi", 45000, 612, "VERIFIED"),
-    ("C004", "Sneha Iyer", "sneha.iyer@example.com", "9876503456", "Mumbai", 200000, 815, "VERIFIED"),
-    ("C005", "Vikram Singh", "vikram.singh@example.com", "9876507890", "Pune", 60000, 690, "PENDING"),
+    ("C001", "Sanjay", "sanjay@example.com", "9876501234", "Namakkal", 130000, 782, "VERIFIED"),
+    ("C002", "Faizal", "faizal@example.com", "9876505678", "Chennai", 85000, 701, "VERIFIED"),
+    ("C003", "Harris", "harris@example.com", "9876509012", "Tirupathur", 45000, 612, "VERIFIED"),
+    ("C004", "Mukesh", "mukesh@example.com", "9876503456", "Tenkasi", 200000, 815, "VERIFIED"),
+    ("C005", "Ragul", "ragul@example.com", "9876507890", "Theni", 60000, 690, "PENDING"),
 ]
 
 MERCHANTS = [
@@ -94,26 +94,26 @@ def seed() -> None:
                      m, cat, "IN", random.choice(["UPI", "CARD", "NETBANKING"]), dev_id),
                 )
 
-        # ---- Planted suspicious activity for C001 (Arjun) -------------------
+        # ---- Planted suspicious activity for C001 (Sanjay) ------------------
         def add(tid, cid, ts, amt, merch, cat, country, chan, dev):
             conn.execute(
                 "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?)",
                 (tid, cid, ts.isoformat(), amt, merch, cat, country, chan, dev),
             )
 
-        # Large foreign purchase at 3 AM from an unknown device
-        add("TXN-9001", "C001", now - timedelta(hours=14, minutes=0), 48000.0, "LuxeWatch Boutique",
-            "luxury", "AE", "CARD", "DEV-UNKNOWN-77")
-        # Card-testing pattern: repeated small foreign charges
+        # Large domestic purchase at 3 AM from an unknown device
+        add("TXN-9001", "C001", now - timedelta(hours=14, minutes=0), 48000.0, "Ethos Watches",
+            "luxury", "IN", "CARD", "DEV-UNKNOWN-77")
+        # Card-testing pattern: repeated small domestic charges
         for i in range(4):
             add(f"TXN-900{2 + i}", "C001", now - timedelta(hours=13, minutes=50 - i * 3), 99.0,
-                "QuickPay Digital", "digital", "RO", "CARD", "DEV-UNKNOWN-77")
+                "Paytm", "digital", "IN", "CARD", "DEV-UNKNOWN-77")
         conn.execute("UPDATE transactions SET ts = ? WHERE id = 'TXN-9001'",
                      ((now - timedelta(days=1)).replace(hour=3, minute=12).isoformat(),))
         conn.execute("UPDATE transactions SET ts = ? WHERE id IN ('TXN-9002','TXN-9003','TXN-9004','TXN-9005')",
                      ((now - timedelta(days=1)).replace(hour=3, minute=20).isoformat(),))
         conn.execute("INSERT INTO devices VALUES (?,?,?,?,?,?,?)",
-                     ("DEV-UNKNOWN-77", "C001", "Unrecognised device", "Bucharest", "RO",
+                     ("DEV-UNKNOWN-77", "C001", "Unrecognised device", "Bengaluru", "IN",
                       (now - timedelta(days=1)).isoformat(), 0))
 
         # One mildly unusual txn for C003 (high amount, but domestic)

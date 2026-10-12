@@ -45,6 +45,31 @@ def customers() -> list[dict]:
     return query("SELECT id, name, city FROM customers ORDER BY id")
 
 
+@app.get("/customer/{customer_id}/overview")
+def customer_overview(customer_id: str) -> dict:
+    _check_customer(customer_id)
+    cust = query_one(
+        "SELECT id, name, email, phone, city, home_country, monthly_income, credit_score, kyc_status "
+        "FROM customers WHERE id = ?",
+        (customer_id,),
+    )
+    acct = query_one(
+        "SELECT account_no, account_type, balance, card_last4, card_status "
+        "FROM accounts WHERE customer_id = ?",
+        (customer_id,),
+    )
+    loans = query(
+        "SELECT id, loan_type, principal, annual_rate, tenure_months, emi, outstanding, status, next_due "
+        "FROM loans WHERE customer_id = ?",
+        (customer_id,),
+    )
+    return {
+        "customer": cust,
+        "account": acct,
+        "loans": loans or [],
+    }
+
+
 @app.post("/chat")
 def chat(req: ChatRequest) -> dict:
     _check_customer(req.customer_id)
