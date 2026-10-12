@@ -55,8 +55,6 @@ Mira solves this through a **Multi-Agent Orchestrator Model**:
 
 ```text
 Multi-Agent-Banking-Assistant-MVP-/
-├── Logo.png                   # Mira brand wordmark & application icon
-├── userprofile.png            # Customer avatar image
 ├── README.md                  # Comprehensive project documentation
 ├── requirements.txt           # Python dependencies
 ├── run.py                     # Unified launcher (starts FastAPI + Streamlit concurrently)
@@ -88,13 +86,7 @@ Multi-Agent-Banking-Assistant-MVP-/
 │       └── policies/          # Local banking policy documents (personal loan rates, foreclosure rules)
 │
 ├── ui/                        # Streamlit Frontend
-│   └── streamlit_app.py       # Modern executive fintech chat interface & banking cockpit
-│
-├── tests/                     # Automated Test Suite
-│   ├── __init__.py
-│   ├── test_llm.py            # LLM client tool calling and schema mapping tests
-│   ├── test_routing.py        # Supervisor deterministic fast-path and fallback routing tests
-│   └── test_usecases.py       # End-to-end banking use cases, confirmation gates, and safety tests
+│   └── streamlit_app.py       # Modern executive fintech chat interface & banking cockpi
 │
 └── logs/                      # Runtime Logs
     └── audit.jsonl            # Security audit trail of all messages, tool calls, and decisions
