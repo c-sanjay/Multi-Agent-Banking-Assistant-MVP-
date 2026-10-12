@@ -4,7 +4,6 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.35%2B-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![Multi-Agent](https://img.shields.io/badge/Architecture-Supervisor%20Orchestrator-6366f1)](https://github.com/)
-[![Tests](https://img.shields.io/badge/Tests-18%2F18%20Passing-brightgreen?logo=pytest&logoColor=white)](https://docs.pytest.org/)
 [![Guardrails](https://img.shields.io/badge/Security-PII%20Masking%20%2B%20Identity%20Injection-10b981)](https://github.com/)
 
 An enterprise-grade, autonomous retail banking assistant combining a **FastAPI** backend, specialized **Multi-Agent Orchestration**, and an executive **Streamlit Banking Cockpit** called **Mira**.
@@ -51,6 +50,55 @@ Mira solves this through a **Multi-Agent Orchestrator Model**:
 4. **Deterministic Safety:** Numerical operations (EMIs, balances, interest rates) and sensitive write approvals are grounded in deterministic code, not probabilistic model guesses.
 
 ---
+
+## 📂 Project Directory Structure
+
+```text
+Multi-Agent-Banking-Assistant-MVP-/
+├── Logo.png                   # Mira brand wordmark & application icon
+├── userprofile.png            # Customer avatar image
+├── README.md                  # Comprehensive project documentation
+├── requirements.txt           # Python dependencies
+├── run.py                     # Unified launcher (starts FastAPI + Streamlit concurrently)
+├── bank.db                    # Seeded SQLite database (auto-generated on first launch)
+│
+├── app/                       # Backend Application Core
+│   ├── __init__.py
+│   ├── config.py              # Environment configuration & LLM settings
+│   ├── db.py                  # Thread-safe SQLite query helpers
+│   ├── guardrails.py          # AI Gateway: input screening, PII masking & audit logging
+│   ├── llm.py                 # LLM client abstractions (Mock, OpenRouter, Anthropic)
+│   ├── main.py                # FastAPI REST endpoints (/chat, /confirm, /customers, /overview, /reset)
+│   ├── supervisor.py          # Multi-agent orchestrator: intent routing & response composition
+│   │
+│   ├── agents/                # Specialist Agent Specifications
+│   │   ├── __init__.py
+│   │   ├── base.py            # Agent execution cycle & context management
+│   │   └── specialists.py     # Customer, Risk, and Credit agent definitions
+│   │
+│   ├── tools/                 # Tool Registry & Domain Implementations
+│   │   ├── __init__.py
+│   │   ├── registry.py        # Least-privilege tool registry, argument validation & confirmation gate
+│   │   ├── customer_tools.py  # Balances, transactions, profile & card blocking
+│   │   ├── risk_tools.py      # Rule-based anomaly detection & transaction risk scoring
+│   │   └── loan_tools.py      # Loan underwriting, EMI calculator & BM25 policy search
+│   │
+│   └── data/                  # Seed Data & Knowledge Base
+│       ├── seed.py            # Deterministic database seeder (customers, accounts, loans, planted fraud)
+│       └── policies/          # Local banking policy documents (personal loan rates, foreclosure rules)
+│
+├── ui/                        # Streamlit Frontend
+│   └── streamlit_app.py       # Modern executive fintech chat interface & banking cockpit
+│
+├── tests/                     # Automated Test Suite
+│   ├── __init__.py
+│   ├── test_llm.py            # LLM client tool calling and schema mapping tests
+│   ├── test_routing.py        # Supervisor deterministic fast-path and fallback routing tests
+│   └── test_usecases.py       # End-to-end banking use cases, confirmation gates, and safety tests
+│
+└── logs/                      # Runtime Logs
+    └── audit.jsonl            # Security audit trail of all messages, tool calls, and decisions
+```
 
 ## 🏛️ System Architecture
 
@@ -296,134 +344,4 @@ The seeded SQLite database includes five distinct customer personas designed to 
 
 ---
 
-## 🧪 Automated Testing & QA
-
-The project includes an end-to-end test suite covering all functional banking requirements, agent routing, tool boundaries, customer data isolation, and guardrails.
-
-To run the complete automated test suite:
-
-```bash
-python -m pytest -q
-```
-
-Or for verbose test reporting:
-
-```bash
-pytest -v
-```
-
-### What the 18 Automated Tests Cover
-
-- ✅ **Account Servicing:** Verifies balance retrieval, transaction formatting, and PII masking.
-- ✅ **Risk & Fraud Anomaly Detection:** Verifies detection of planted suspicious charge `TXN-9001` without leaking internal traces.
-- ✅ **Loan Underwriting Rules:** Verifies approved eligibility for prime customers and structured rejection reasons for sub-threshold customers.
-- ✅ **Deterministic EMI Calculations:** Validates exact mathematical formulas (`₹16,369`).
-- ✅ **Multi-Agent Dispute Flow:** Verifies sequencing of Risk + Customer agents, pending confirmation creation, state immutability before confirmation, and post-confirmation card status update.
-- ✅ **Cancellation Safety:** Verifies that rejecting a pending action leaves card state untouched.
-- ✅ **Prompt Injection Defense:** Validates rejection of adversarial prompts and system instruction leakage attempts.
-- ✅ **Least-Privilege Role Enforcement:** Confirms that the Risk agent cannot execute the Customer agent's `block_card` tool.
-- ✅ **Write Tool Confirmation Gates:** Asserts that write tools return `confirmation_required` when executed without explicit confirmation.
-- ✅ **Customer Data Isolation:** Confirms that customer A cannot access data belonging to customer B.
-- ✅ **PII Masking:** Asserts automatic redaction of 16-digit cards, 12-digit accounts, and emails.
-- ✅ **Deterministic Fast-Routing:** Asserts router model is bypassed for high-confidence banking queries.
-
----
-
-## 📂 Project Directory Structure
-
-```text
-Multi-Agent-Banking-Assistant-MVP-/
-├── Logo.png                   # Mira brand wordmark & application icon
-├── userprofile.png            # Customer avatar image
-├── README.md                  # Comprehensive project documentation
-├── requirements.txt           # Python dependencies
-├── run.py                     # Unified launcher (starts FastAPI + Streamlit concurrently)
-├── bank.db                    # Seeded SQLite database (auto-generated on first launch)
-│
-├── app/                       # Backend Application Core
-│   ├── __init__.py
-│   ├── config.py              # Environment configuration & LLM settings
-│   ├── db.py                  # Thread-safe SQLite query helpers
-│   ├── guardrails.py          # AI Gateway: input screening, PII masking & audit logging
-│   ├── llm.py                 # LLM client abstractions (Mock, OpenRouter, Anthropic)
-│   ├── main.py                # FastAPI REST endpoints (/chat, /confirm, /customers, /overview, /reset)
-│   ├── supervisor.py          # Multi-agent orchestrator: intent routing & response composition
-│   │
-│   ├── agents/                # Specialist Agent Specifications
-│   │   ├── __init__.py
-│   │   ├── base.py            # Agent execution cycle & context management
-│   │   └── specialists.py     # Customer, Risk, and Credit agent definitions
-│   │
-│   ├── tools/                 # Tool Registry & Domain Implementations
-│   │   ├── __init__.py
-│   │   ├── registry.py        # Least-privilege tool registry, argument validation & confirmation gate
-│   │   ├── customer_tools.py  # Balances, transactions, profile & card blocking
-│   │   ├── risk_tools.py      # Rule-based anomaly detection & transaction risk scoring
-│   │   └── loan_tools.py      # Loan underwriting, EMI calculator & BM25 policy search
-│   │
-│   └── data/                  # Seed Data & Knowledge Base
-│       ├── seed.py            # Deterministic database seeder (customers, accounts, loans, planted fraud)
-│       └── policies/          # Local banking policy documents (personal loan rates, foreclosure rules)
-│
-├── ui/                        # Streamlit Frontend
-│   └── streamlit_app.py       # Modern executive fintech chat interface & banking cockpit
-│
-├── tests/                     # Automated Test Suite
-│   ├── __init__.py
-│   ├── test_llm.py            # LLM client tool calling and schema mapping tests
-│   ├── test_routing.py        # Supervisor deterministic fast-path and fallback routing tests
-│   └── test_usecases.py       # End-to-end banking use cases, confirmation gates, and safety tests
-│
-└── logs/                      # Runtime Logs
-    └── audit.jsonl            # Security audit trail of all messages, tool calls, and decisions
-```
-
----
-
-## 🎙️ 5–7 Minute Demo Presentation Script
-
-Use this reference script when presenting or demonstrating Mira to stakeholders or evaluators:
-
-### 0:00–0:45 — Introduction & Core Problem
-> "Good morning. I’m presenting **Mira**, an enterprise-grade Multi-Agent Banking Assistant MVP. When banks build AI assistants, a standard single-prompt chatbot is insufficient: models can hallucinate balances, perform inaccurate loan calculations, or silently alter account states without human approval.
-> 
-> Mira solves this by implementing a **Multi-Agent Orchestrator Model** backed by FastAPI and a modern Streamlit banking cockpit. It delegates user requests across three narrow specialist agents—Customer Servicing, Risk & Fraud Sentinel, and Credit Underwriting—with strict role permissions, identity injection, and mandatory human-in-the-loop approval."
-
-### 0:45–1:40 — Architecture & Security Perimeter
-> "Looking at the system architecture: when a customer interacts with Mira, their request enters our **AI Gateway**. First, **Input Guardrails** screen the prompt for injection attacks and off-topic chatter.
-> 
-> Next, the **Supervisor Router** classifies the intent using a hybrid approach: clear banking requests use high-speed deterministic regex routing, while ambiguous requests invoke the supervisor model.
-> 
-> Crucially, our backend injects the authenticated customer identity directly into the execution context—the language model is never trusted to choose an account number. Each specialist agent only has access to its permitted tools in our central **Tool Registry**. Finally, all outgoing responses pass through **PII Masking** before reaching the user."
-
-### 1:40–3:00 — Live Demo: Banking Cockpit & Fraud Sentinel
-> "Let's log in as **Sanjay (C001)**. Notice our modernized Banking Cockpit: we have a live Virtual Debit Card showing status `ACTIVE`, real-time savings balance of ₹1.3L+ inflow, credit score gauge (782 Prime), and multi-agent health status.
-> 
-> I'll click our quick shortcut: *'Anything suspicious on my account?'*. 
-> 
-> The Supervisor routes this to our **Risk Agent**. The Risk Sentinel runs rule-based heuristics over Sanjay's transactions and immediately flags transaction `TXN-9001`—a ₹48,000 charge for luxury watches at 3:12 AM from an unrecognized device—as well as multiple rapid ₹99 card-testing charges. The agent explains the exact risk rationale in plain language."
-
-### 3:00–4:15 — Human-in-the-Loop Confirmation Gate
-> "Now, I'll say: *'That ₹48,000 charge looks wrong, check it and block my card'*.
-> 
-> This is a multi-agent workflow: the Risk Agent evaluates the fraud, and the Customer Agent prepares to freeze the card. But notice: our backend prevents write tools from executing silently. The UI presents our **High-Security Confirmation Gate**, warning that this action will freeze card activity.
-> 
-> Once I click **Confirm & Execute Action**, the Customer Agent executes the write tool. Notice that our Virtual Debit Card widget in the cockpit immediately transitions from `ACTIVE` to `🔴 BLOCKED`. If I had clicked Cancel, the account would remain completely untouched."
-
-### 4:15–5:15 — Lending Underwriting & Deterministic Math
-> "Next, let's explore lending with our **Credit Specialist**. If I ask *'Am I eligible for a ₹5 lakh personal loan?'*, the Credit Agent evaluates Sanjay's profile and confirms eligibility. But if we switch to **Harris (C003)**, whose income is ₹45k and credit score is 612, the agent explains the exact underwriting criteria: income below ₹50k and score below 680.
-> 
-> When asked *'Calculate EMI for ₹5L over 3 years at 11%'*, our Credit Agent performs deterministic mathematical calculation—returning the exact ₹16,369 monthly installment without model calculation errors.
-> 
-> For policy queries, such as loan prepayment or foreclosure charges, the Credit Agent searches local banking policy documents using a BM25 retriever."
-
-### 5:15–6:00 — Verification & Conclusion
-> "To run the application, simply execute `python run.py`, which launches both FastAPI on port 8000 and Streamlit on port 8501. The project runs **100% offline** without API keys using our built-in mock LLM, and includes a comprehensive automated test suite with **18 passing tests** covering use cases, prompt injection defense, tool permissions, and data isolation.
-> 
-> In summary, Mira shows how multi-agent routing, least-privilege tools, deterministic math, and human confirmation turn conversational AI into a safe, reliable banking system. Thank you!"
-
----
-
-## 📄 License & Attribution
-
-This project is released under the **MIT License**. Created as an architectural demonstration of multi-agent orchestration for retail banking systems.
+The project includes an end-to-end test suite covering all 
