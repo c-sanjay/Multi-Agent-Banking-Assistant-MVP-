@@ -13,31 +13,6 @@ Mira enables customers to perform conversational banking operations—inquiring 
 > [!NOTE]
 > **Demo Environment:** This MVP runs with deterministic, seeded banking data in a local SQLite database (`bank.db`). It operates **100% offline** by default using an offline mock LLM provider, with optional zero-code switching to hosted providers such as **OpenRouter** or **Anthropic**.
 
----
-
-## 📑 Table of Contents
-
-- [Executive Overview](#-executive-overview)
-- [System Architecture](#-system-architecture)
-  - [Architecture Diagram](#architecture-diagram)
-  - [Multi-Agent Orchestration & Specialists](#multi-agent-orchestration--specialists)
-  - [AI Gateway, Security & Guardrails](#ai-gateway-security--guardrails)
-  - [Human-in-the-Loop Confirmation Gate](#human-in-the-loop-confirmation-gate)
-- [Prerequisites & Requirements](#-prerequisites--requirements)
-- [Step-by-Step Setup](#-step-by-step-setup)
-  - [Windows PowerShell](#windows-powershell)
-  - [macOS / Linux](#macos--linux)
-- [Configuration & LLM Providers](#-configuration--llm-providers)
-- [Execution Instructions](#-execution-instructions)
-  - [Unified Execution (Recommended)](#unified-execution-recommended)
-  - [Individual Service Execution](#individual-service-execution)
-  - [Service Endpoints & API Documentation](#service-endpoints--api-documentation)
-- [Demo Personas & Test Scenarios](#-demo-personas--test-scenarios)
-- [Automated Testing & QA](#-automated-testing--qa)
-- [Project Directory Structure](#-project-directory-structure)
-- [5–7 Minute Demo Presentation Script](#-57-minute-demo-presentation-script)
-
----
 
 ## 🌟 Executive Overview
 
