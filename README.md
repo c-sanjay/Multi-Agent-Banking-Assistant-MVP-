@@ -95,33 +95,7 @@ Multi-Agent-Banking-Assistant-MVP-/
 ## 🏛️ System Architecture
 
 ### Architecture Diagram
-
-```mermaid
-flowchart TD
-    Customer[Customer] --> UI[Streamlit Chat UI]
-    UI --> API[FastAPI API and Guardrails]
-    API --> Supervisor[Supervisor and Intent Router]
-
-    Supervisor -->|Accounts and cards| Banking[Customer / Banking Agent]
-    Supervisor -->|Fraud and suspicious activity| Risk[Risk / Fraud Agent]
-    Supervisor -->|Loans, credit and policies| Credit[Credit / Loan Agent]
-
-    Banking --> Tools[Restricted Banking Tools]
-    Risk --> Tools
-    Credit --> Tools
-    Tools --> Database[(SQLite Banking Data)]
-    Credit --> PolicySearch[BM25 Policy Search]
-    PolicySearch --> Policies[(Local Policy Documents)]
-
-    Banking --> Results[Supervisor Combines Agent Results]
-    Risk --> Results
-    Credit --> Results
-    Results --> Mask[PII Masking and Audit Log]
-    Mask --> UI
-
-    Banking -. Card changes require customer confirmation .-> Confirm[Confirmation Gate]
-    Confirm -. Confirmed action .-> Banking
-```
+<img width="1800" height="2120" alt="workflow_simple" src="https://github.com/user-attachments/assets/757cee81-2bf8-4e08-8913-26f20edef248" />
 
 ### How the Three Agents Work Together
 
