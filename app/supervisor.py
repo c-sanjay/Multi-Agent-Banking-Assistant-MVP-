@@ -110,8 +110,13 @@ def _compose(message: str, runs: list[dict]) -> str:
     return "\n\n".join(r["answer"] for r in runs if r["answer"].strip())
 
 
-def _reply(answer, pending=None, blocked=False) -> dict:
-    return {"answer": guardrails.mask_pii(answer), "pending_confirmation": pending, "blocked": blocked}
+def _reply(answer, pending=None, blocked=False, agents=None) -> dict:
+    return {
+        "answer": guardrails.mask_pii(answer),
+        "pending_confirmation": pending,
+        "blocked": blocked,
+        "agents": agents or [],
+    }
 
 
 def _pending_summary(p: dict) -> dict:
@@ -170,7 +175,7 @@ def handle_message(session_id: str, customer_id: str, message: str) -> dict:
         sess["pending"] = ctx.pending_action
         pending = _pending_summary(ctx.pending_action)
 
-    reply = _reply(answer, pending)
+    reply = _reply(answer, pending, agents=decision["agents"])
     sess["history"].append({"user": message, "assistant": reply["answer"]})
     guardrails.audit_log({"request_id": request_id, "customer_id": customer_id, "message": message,
                           "pending_confirmation": bool(pending)})
@@ -200,4 +205,4 @@ def confirm_action(session_id: str, customer_id: str, approve: bool) -> dict:
     guardrails.audit_log({"request_id": request_id, "customer_id": customer_id, "confirmation": approve,
                           "action": pending["tool"]})
     sess["history"].append({"user": "(confirmation)" if approve else "(cancelled)", "assistant": answer})
-    return _reply(answer)
+    return _reply(answer, agents=[pending["agent"]])

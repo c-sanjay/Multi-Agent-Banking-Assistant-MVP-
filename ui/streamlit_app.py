@@ -242,6 +242,48 @@ html, body, [class*="css"], [data-testid="stAppViewContainer"] {
     line-height: 1.68;
     margin-bottom: 0.35rem;
 }
+.agent-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0 0 0.55rem;
+}
+.agent-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.42rem;
+    padding: 0.24rem 0.62rem;
+    border: 1px solid;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+    line-height: 1.35;
+    white-space: nowrap;
+}
+.agent-badge::before {
+    width: 0.38rem;
+    height: 0.38rem;
+    border-radius: 50%;
+    content: "";
+    background: currentColor;
+    opacity: 0.75;
+}
+.agent-badge-customer {
+    color: #0369a1;
+    background: #f0f9ff;
+    border-color: #bae6fd;
+}
+.agent-badge-risk {
+    color: #b45309;
+    background: #fff7ed;
+    border-color: #fed7aa;
+}
+.agent-badge-credit {
+    color: #6d28d9;
+    background: #f5f3ff;
+    border-color: #ddd6fe;
+}
 [data-testid="stChatMessage"] code {
     font-family: "JetBrains Mono", monospace !important;
     background: #f1f5f9;
@@ -500,14 +542,14 @@ def queue_prompt(prompt_text: str) -> None:
 
 def send_chat(message: str) -> None:
     data = api("POST", "/chat", json={"session_id": ss.session_id, "customer_id": ss.customer_id, "message": message})
-    ss.messages.append({"role": "assistant", "content": data["answer"]})
+    ss.messages.append({"role": "assistant", "content": data["answer"], "agents": data.get("agents", [])})
     ss.pending = data.get("pending_confirmation")
     ss.overview = api("GET", f"/customer/{ss.customer_id}/overview")
 
 
 def handle_confirm(approve: bool) -> None:
     data = api("POST", "/confirm", json={"session_id": ss.session_id, "customer_id": ss.customer_id, "approve": approve})
-    ss.messages.append({"role": "assistant", "content": data["answer"]})
+    ss.messages.append({"role": "assistant", "content": data["answer"], "agents": data.get("agents", [])})
     ss.pending = None
     ss.overview = api("GET", f"/customer/{ss.customer_id}/overview")
 
@@ -664,6 +706,22 @@ with st.container(border=True, key="chat_panel_wrapper"):
                     st.markdown(m["content"])
             else:
                 with st.chat_message("assistant", avatar=AI_AVATAR):
+                    agent_labels = {
+                        "customer": ("Customer / Banking Agent", "customer"),
+                        "risk": ("Risk & Fraud Agent", "risk"),
+                        "credit": ("Credit / Loan Agent", "credit"),
+                    }
+                    badges = [
+                        f'<span class="agent-badge agent-badge-{agent_labels[agent][1]}">'
+                        f'{agent_labels[agent][0]}</span>'
+                        for agent in m.get("agents", [])
+                        if agent in agent_labels
+                    ]
+                    if badges:
+                        st.markdown(
+                            f'<div class="agent-badges">{"".join(badges)}</div>',
+                            unsafe_allow_html=True,
+                        )
                     st.markdown(m["content"])
 
         # Render Pending Confirmation Gate

@@ -106,51 +106,29 @@ Multi-Agent-Banking-Assistant-MVP-/
 
 ```mermaid
 flowchart TD
-    subgraph UI ["Client Layer"]
-        A[Customer Browser] --> B[Streamlit Banking Cockpit]
-        B --> C[Chat / Dashboard]
-    end
+    Customer[Customer] --> UI[Streamlit Chat UI]
+    UI --> API[FastAPI API and Guardrails]
+    API --> Supervisor[Supervisor and Intent Router]
 
-    subgraph API ["API & Safety Layer (FastAPI)"]
-        C -->|POST /chat| D[Input Guardrails]
-        D -->|Validated request| E[Supervisor / Orchestrator]
-    end
+    Supervisor -->|Accounts and cards| Banking[Customer / Banking Agent]
+    Supervisor -->|Fraud and suspicious activity| Risk[Risk / Fraud Agent]
+    Supervisor -->|Loans, credit and policies| Credit[Credit / Loan Agent]
 
-    subgraph ORCHESTRATION ["Multi-Agent Orchestration"]
-        E --> F{Intent Router}
-        F -->|Accounts, profile, cards| G[Customer / Banking Agent]
-        F -->|Fraud, suspicious activity| H[Risk / Fraud Agent]
-        F -->|Loans, EMI, credit, policy| I[Credit / Loan Agent]
-        G -->|Agent result| J[Supervisor: collect results]
-        H -->|Agent result| J
-        I -->|Agent result| J
-        H -. "If task spans domains: findings passed as context" .-> G
-        I -. "If task spans domains: findings passed as context" .-> G
-    end
+    Banking --> Tools[Restricted Banking Tools]
+    Risk --> Tools
+    Credit --> Tools
+    Tools --> Database[(SQLite Banking Data)]
+    Credit --> PolicySearch[BM25 Policy Search]
+    PolicySearch --> Policies[(Local Policy Documents)]
 
-    subgraph TOOLS ["Restricted Tools & Data"]
-        G --> K[Customer tools]
-        H --> L[Risk tools]
-        I --> M[Credit / loan tools]
-        K --> N[(SQLite banking data)]
-        L --> N
-        M --> N
-        M --> O[BM25 policy search]
-        O --> P[(Local policy documents)]
-    end
+    Banking --> Results[Supervisor Combines Agent Results]
+    Risk --> Results
+    Credit --> Results
+    Results --> Mask[PII Masking and Audit Log]
+    Mask --> UI
 
-    subgraph CONFIRM ["Write-Action Safety"]
-        K --> Q{Card write requested?}
-        Q -->|Yes| R[Ask customer for confirmation]
-        R -->|Confirmed via /confirm| K
-    end
-
-    subgraph OUTPUT ["Response & Audit"]
-        J --> S[Compose agent answers]
-        S --> T[PII masking]
-        T --> U[(Audit log)]
-        T -->|Final response| B
-    end
+    Banking -. Card changes require customer confirmation .-> Confirm[Confirmation Gate]
+    Confirm -. Confirmed action .-> Banking
 ```
 
 ### How the Three Agents Work Together
@@ -158,6 +136,8 @@ flowchart TD
 The supervisor is the coordinator; it does not replace the specialists. It selects the smallest set of agents needed for a request, then runs selected agents in order: **Risk/Fraud → Credit/Loan → Customer/Banking**. Each agent has its own instructions and restricted tools. For a multi-agent request, the supervisor passes earlier agents' findings to the next selected agent as context, then combines non-empty agent answers into one reply. The final reply is PII-masked before it is returned to the UI.
 
 Most requests use just one agent. For example, a balance question goes to Customer/Banking, a suspicious transaction review goes to Risk/Fraud, and a loan-policy question goes to Credit/Loan. For “check this suspicious charge and block my card,” Risk/Fraud assesses the charge first; its findings are passed to Customer/Banking, which handles the card action through the confirmation gate. The supervisor combines both answers so the customer receives the assessment and the action/confirmation status together. Credit/Loan participates when a request involves loans, credit, EMI, or policy information; the project does not invoke all three agents for every message.
+
+Each assistant reply in the chat displays a badge for the agent or agents that handled that request. Confirmation replies also identify the Customer/Banking agent responsible for the card action; a request stopped by an input guardrail has no specialist-agent badge because no agent ran.
 
 ### Multi-Agent Orchestration & Specialists
 
